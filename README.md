@@ -7,8 +7,8 @@ search without a paid server or an API key.
 ## Data contract
 
 - USDA records remain identified as `usda` and retain their FoodData Central ID.
-- Open Food Facts records, when supplied to the optional importer, remain
-  identified as `off` and are published as a separate source collection.
+- Open Food Facts remains a separately identified live fallback inside
+  BlackPyre; it is never relabeled or merged into the USDA catalog.
 - The app may present one search experience, but the source datasets are never
   merged into a new unlabeled database.
 - Every result remains subject to package-label verification before logging.
@@ -19,8 +19,9 @@ search without a paid server or an API key.
 Search shards are selected by the first two normalized characters of a product
 or brand token. Barcode shards are selected by the first two barcode digits.
 
-The scheduled workflow downloads the current USDA branded CSV archive, builds
-and validates the shards, and publishes a dated GitHub Release. The app uses
+The scheduled workflow discovers and downloads the newest USDA branded CSV
+archive from USDA's official downloads page, builds and validates every shard,
+and publishes a dated GitHub Release only after every asset succeeds. The app uses
 GitHub's stable `releases/latest/download/manifest.json` URL and caches shards
 locally for offline reuse.
 
