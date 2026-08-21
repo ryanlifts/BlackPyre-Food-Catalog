@@ -1,0 +1,8 @@
+Open Food Facts database content is available under the Open Database License
+(ODbL) 1.0. Images and individual database contents may carry separate terms.
+
+Source: https://world.openfoodfacts.org/
+License: https://opendatacommons.org/licenses/odbl/1-0/
+
+BlackPyre keeps Open Food Facts records source-identified and separate from
+USDA records. This repository's software license does not replace the ODbL.

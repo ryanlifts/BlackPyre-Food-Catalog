@@ -1,0 +1,3 @@
+fdc_id,brand_owner,brand_name,subbrand_name,gtin_upc,serving_size,serving_size_unit,household_serving_fulltext,branded_food_category,data_source,package_weight,modified_date,available_date,market_country
+1,Test Foods,Test Brand,,001234567890,170,g,1 container,Yogurt,GDSN,,2026-04-30,2026-04-30,United States
+2,Elsewhere Foods,Elsewhere,,009999999999,100,g,1 package,Food,GDSN,,2026-04-30,2026-04-30,Canada

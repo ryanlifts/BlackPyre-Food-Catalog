@@ -1,0 +1,38 @@
+# BlackPyre Food Catalog
+
+BlackPyre's no-cost, downloadable food-data pipeline. It turns public USDA
+FoodData Central bulk downloads into small JSON shards that BlackPyre can
+search without a paid server or an API key.
+
+## Data contract
+
+- USDA records remain identified as `usda` and retain their FoodData Central ID.
+- Open Food Facts records, when supplied to the optional importer, remain
+  identified as `off` and are published as a separate source collection.
+- The app may present one search experience, but the source datasets are never
+  merged into a new unlabeled database.
+- Every result remains subject to package-label verification before logging.
+
+## Release assets
+
+`manifest.json` describes the current catalog and every published shard.
+Search shards are selected by the first two normalized characters of a product
+or brand token. Barcode shards are selected by the first two barcode digits.
+
+The scheduled workflow downloads the current USDA branded CSV archive, builds
+and validates the shards, and publishes a dated GitHub Release. The app uses
+GitHub's stable `releases/latest/download/manifest.json` URL and caches shards
+locally for offline reuse.
+
+## Local build
+
+```sh
+python3 tools/build_catalog.py \
+  --usda-zip FoodData_Central_branded_food_csv_2026-04-30.zip \
+  --output dist \
+  --release-tag catalog-2026-04-30
+python3 tools/validate_catalog.py dist
+```
+
+USDA FoodData Central data is public domain under CC0. Open Food Facts data is
+available under ODbL; see `licenses/` and the manifest source metadata.

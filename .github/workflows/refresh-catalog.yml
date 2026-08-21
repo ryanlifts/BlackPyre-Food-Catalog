@@ -1,0 +1,45 @@
+name: Refresh BlackPyre Food Catalog
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 9 1 * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: food-catalog-refresh
+  cancel-in-progress: false
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      USDA_URL: https://fdc.nal.usda.gov/fdc-datasets/FoodData_Central_branded_food_csv_2026-04-30.zip
+      USDA_SOURCE_DATE: "2026-04-30"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Select release tag
+        run: echo "CATALOG_TAG=catalog-$(date -u +%Y-%m-%d)-${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+      - name: Build source-separated catalog
+        run: >-
+          python3 tools/build_catalog.py
+          --usda-zip "$USDA_URL"
+          --output dist
+          --release-tag "$CATALOG_TAG"
+          --source-date "$USDA_SOURCE_DATE"
+      - name: Validate every catalog asset
+        run: python3 tools/validate_catalog.py dist
+      - name: Publish versioned catalog release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create "$CATALOG_TAG"
+          dist/*
+          --title "BlackPyre Food Catalog $CATALOG_TAG"
+          --notes "USDA FoodData Central branded-food catalog. USDA records are CC0 and source-identified. Open Food Facts remains a separate ODbL live fallback in BlackPyre."

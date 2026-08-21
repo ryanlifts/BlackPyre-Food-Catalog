@@ -1,0 +1,9 @@
+USDA FoodData Central data is in the public domain and published under the
+Creative Commons CC0 1.0 Universal dedication.
+
+Source: https://fdc.nal.usda.gov/
+License: https://creativecommons.org/publicdomain/zero/1.0/
+
+Suggested source credit:
+U.S. Department of Agriculture, Agricultural Research Service, Beltsville
+Human Nutrition Research Center. FoodData Central.

@@ -1,0 +1,9 @@
+id,fdc_id,nutrient_id,amount,data_points,derivation_id,min,max,median,loq,footnote,min_year_acquired
+1,1,1008,59,,,,,,,,
+2,1,1003,10,,,,,,,,
+3,1,1005,3.6,,,,,,,,
+4,1,1004,0.4,,,,,,,,
+5,2,1008,100,,,,,,,,
+6,2,1003,1,,,,,,,,
+7,2,1005,20,,,,,,,,
+8,2,1004,1,,,,,,,,
