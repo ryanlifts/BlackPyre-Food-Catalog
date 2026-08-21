@@ -21,13 +21,34 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Select release tag
-        run: echo "CATALOG_TAG=catalog-$(date -u +%Y-%m-%d)-${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
       - name: Discover current official USDA bulk release
         run: python3 tools/discover_usda_release.py --github-env "$GITHUB_ENV"
       - name: Test release discovery
         run: python3 -m unittest tests/test_discover_usda_release.py
+      - name: Check whether USDA published a new source release
+        id: catalog-needed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          build=true
+          if [ "$GITHUB_EVENT_NAME" = "schedule" ]; then
+            existing_dir=$(mktemp -d)
+            if gh release download --pattern manifest.json --dir "$existing_dir" 2>/dev/null; then
+              previous_source=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["sources"]["usda"]["release"])' "$existing_dir/manifest.json")
+              if [ "$previous_source" = "$USDA_SOURCE_DATE" ]; then
+                build=false
+              fi
+            fi
+          fi
+          echo "build=$build" >> "$GITHUB_OUTPUT"
+          if [ "$build" = false ]; then
+            echo "USDA source $USDA_SOURCE_DATE is already published; no duplicate release needed."
+          fi
+      - name: Select release tag
+        if: steps.catalog-needed.outputs.build == 'true'
+        run: echo "CATALOG_TAG=catalog-$(date -u +%Y-%m-%d)-${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
       - name: Build source-separated catalog
+        if: steps.catalog-needed.outputs.build == 'true'
         run: >-
           python3 tools/build_catalog.py
           --usda-zip "$USDA_URL"
@@ -35,8 +56,10 @@ jobs:
           --release-tag "$CATALOG_TAG"
           --source-date "$USDA_SOURCE_DATE"
       - name: Validate every catalog asset
+        if: steps.catalog-needed.outputs.build == 'true'
         run: python3 tools/validate_catalog.py dist
       - name: Publish versioned catalog release
+        if: steps.catalog-needed.outputs.build == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

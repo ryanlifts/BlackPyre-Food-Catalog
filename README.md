@@ -19,9 +19,10 @@ search without a paid server or an API key.
 Search shards are selected by the first two normalized characters of a product
 or brand token. Barcode shards are selected by the first two barcode digits.
 
-The scheduled workflow discovers and downloads the newest USDA branded CSV
-archive from USDA's official downloads page, builds and validates every shard,
-and publishes a dated GitHub Release only after every asset succeeds. The app uses
+The monthly scheduled workflow checks USDA for a newer branded CSV and does
+nothing when the current source is already published. When USDA updates it, the
+workflow downloads the archive, builds and validates every shard, and publishes
+a dated GitHub Release only after every asset succeeds. The app uses
 GitHub's stable `releases/latest/download/manifest.json` URL and caches shards
 locally for offline reuse.
 
