@@ -110,6 +110,7 @@ def initialize_database(path: Path) -> sqlite3.Connection:
           serving_label TEXT NOT NULL DEFAULT '',
           modified TEXT NOT NULL DEFAULT '',
           country TEXT NOT NULL DEFAULT '',
+          data_type TEXT NOT NULL DEFAULT '',
           cal REAL,
           pro REAL,
           carb REAL,
@@ -129,6 +130,31 @@ def load_usda(archive_path: Path, database_path: Path) -> sqlite3.Connection:
         nutrient_member = member_name(archive, "/food_nutrient.csv")
 
         batch = []
+        for row in dict_rows(archive, food_member):
+            batch.append(
+                (
+                    int(row["fdc_id"]),
+                    clean_text(row.get("description"), 180),
+                    clean_text(row.get("data_type"), 40),
+                    clean_text(row.get("publication_date"), 20),
+                )
+            )
+            if len(batch) >= 20_000:
+                connection.executemany(
+                    "INSERT OR REPLACE INTO foods(fdc_id,name,data_type,serving,serving_unit,serving_label,modified) VALUES(?,?,?,100,'g','100 g',?)",
+                    batch,
+                )
+                connection.commit()
+                batch.clear()
+        if batch:
+            connection.executemany(
+                "INSERT OR REPLACE INTO foods(fdc_id,name,data_type,serving,serving_unit,serving_label,modified) VALUES(?,?,?,100,'g','100 g',?)",
+                batch,
+            )
+            connection.commit()
+
+        batch = []
+        rejected = []
         for row in dict_rows(archive, branded_member):
             barcode = normalized_barcode(row.get("gtin_upc"))
             if not barcode:
@@ -137,6 +163,7 @@ def load_usda(archive_path: Path, database_path: Path) -> sqlite3.Connection:
             # BlackPyre 1.0 serves the U.S.; excluding clearly non-U.S. products
             # keeps mobile shards useful and substantially smaller.
             if country and "united states" not in country.lower():
+                rejected.append((int(row["fdc_id"]),))
                 continue
             serving = float_or_none(row.get("serving_size"))
             batch.append(
@@ -153,27 +180,19 @@ def load_usda(archive_path: Path, database_path: Path) -> sqlite3.Connection:
             )
             if len(batch) >= 10_000:
                 connection.executemany(
-                    "INSERT OR REPLACE INTO foods(fdc_id,brand,barcode,serving,serving_unit,serving_label,modified,country) VALUES(?,?,?,?,?,?,?,?)",
-                    batch,
+                    "UPDATE foods SET brand=?,barcode=?,serving=?,serving_unit=?,serving_label=?,modified=?,country=? WHERE fdc_id=?",
+                    [(brand, barcode, serving, unit, label, modified, country, fdc_id) for fdc_id, brand, barcode, serving, unit, label, modified, country in batch],
                 )
                 connection.commit()
                 batch.clear()
         if batch:
             connection.executemany(
-                "INSERT OR REPLACE INTO foods(fdc_id,brand,barcode,serving,serving_unit,serving_label,modified,country) VALUES(?,?,?,?,?,?,?,?)",
-                batch,
+                "UPDATE foods SET brand=?,barcode=?,serving=?,serving_unit=?,serving_label=?,modified=?,country=? WHERE fdc_id=?",
+                [(brand, barcode, serving, unit, label, modified, country, fdc_id) for fdc_id, brand, barcode, serving, unit, label, modified, country in batch],
             )
             connection.commit()
-
-        batch = []
-        for row in dict_rows(archive, food_member):
-            batch.append((clean_text(row.get("description"), 180), int(row["fdc_id"])))
-            if len(batch) >= 20_000:
-                connection.executemany("UPDATE foods SET name=? WHERE fdc_id=?", batch)
-                connection.commit()
-                batch.clear()
-        if batch:
-            connection.executemany("UPDATE foods SET name=? WHERE fdc_id=?", batch)
+        if rejected:
+            connection.executemany("DELETE FROM foods WHERE fdc_id=?", rejected)
             connection.commit()
 
         batch = []
@@ -233,7 +252,7 @@ def write_catalog(connection: sqlite3.Connection, output: Path, release_tag: str
     rows = connection.execute(
         """
         SELECT * FROM foods
-        WHERE name<>'' AND barcode<>''
+        WHERE name<>'' AND (barcode<>'' OR lower(data_type) NOT LIKE '%branded%')
           AND cal IS NOT NULL AND pro IS NOT NULL AND carb IS NOT NULL AND fat IS NOT NULL
           AND cal BETWEEN 0 AND 1000 AND pro BETWEEN 0 AND 100
           AND carb BETWEEN 0 AND 100 AND fat BETWEEN 0 AND 100
@@ -244,13 +263,21 @@ def write_catalog(connection: sqlite3.Connection, output: Path, release_tag: str
     search_shards: dict[str, list] = defaultdict(list)
     barcode_shards: dict[str, list] = defaultdict(list)
     seen_barcodes: set[str] = set()
+    seen_generic: set[str] = set()
     count = 0
     for row in rows:
-        if row["barcode"] in seen_barcodes:
-            continue
-        seen_barcodes.add(row["barcode"])
+        if row["barcode"]:
+            if row["barcode"] in seen_barcodes:
+                continue
+            seen_barcodes.add(row["barcode"])
+        else:
+            generic_key = normalized_token(row["name"])
+            if not generic_key or generic_key in seen_generic:
+                continue
+            seen_generic.add(generic_key)
         record = compact_record(row)
-        barcode_shards[row["barcode"][:2]].append(record)
+        if row["barcode"]:
+            barcode_shards[row["barcode"][:2]].append(record)
         for prefix in prefixes(row["name"], row["brand"]):
             search_shards[prefix].append(record)
         count += 1
@@ -272,6 +299,7 @@ def write_catalog(connection: sqlite3.Connection, output: Path, release_tag: str
         "releaseTag": release_tag,
         "releaseBase": release_base,
         "generated": date.today().isoformat(),
+        "recordCount": count,
         "sources": {
             "usda": {
                 "label": "USDA FoodData Central",
@@ -279,6 +307,7 @@ def write_catalog(connection: sqlite3.Connection, output: Path, release_tag: str
                 "license": "CC0-1.0",
                 "url": "https://fdc.nal.usda.gov/",
                 "records": count,
+                "dataTypes": "all USDA FoodData Central data types",
             },
             "off": {
                 "label": "Open Food Facts",

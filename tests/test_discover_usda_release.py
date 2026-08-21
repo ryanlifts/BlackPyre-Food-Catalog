@@ -15,17 +15,17 @@ SPEC.loader.exec_module(MODULE)
 
 
 class DiscoverUSDAReleaseTests(unittest.TestCase):
-    def test_selects_newest_branded_csv_and_normalizes_relative_url(self):
+    def test_selects_newest_all_data_csv_and_normalizes_relative_url(self):
         document = """
-        <a href="/fdc-datasets/FoodData_Central_branded_food_csv_2025-12-18.zip">old</a>
-        <a href="https://fdc.nal.usda.gov/fdc-datasets/FoodData_Central_branded_food_csv_2026-04-30.zip">new</a>
-        <a href="/fdc-datasets/FoodData_Central_foundation_food_csv_2099-01-01.zip">wrong dataset</a>
+        <a href="/fdc-datasets/FoodData_Central_csv_2025-12-18.zip">old</a>
+        <a href="https://fdc.nal.usda.gov/fdc-datasets/FoodData_Central_csv_2026-04-30.zip">new</a>
+        <a href="/fdc-datasets/FoodData_Central_branded_food_csv_2099-01-01.zip">wrong dataset</a>
         """
         release = MODULE.discover(document)
         self.assertEqual(release.source_date, "2026-04-30")
         self.assertEqual(
             release.url,
-            "https://fdc.nal.usda.gov/fdc-datasets/FoodData_Central_branded_food_csv_2026-04-30.zip",
+            "https://fdc.nal.usda.gov/fdc-datasets/FoodData_Central_csv_2026-04-30.zip",
         )
 
     def test_rejects_page_without_expected_archive(self):

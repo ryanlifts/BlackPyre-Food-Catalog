@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Discover the newest official USDA branded-food bulk CSV archive."""
+"""Discover the newest official USDA all-data-types bulk CSV archive."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from urllib.parse import urljoin
 DOWNLOADS_PAGE = "https://fdc.nal.usda.gov/download-datasets/"
 ARCHIVE_PATTERN = re.compile(
     r"(?P<url>(?:https?://fdc\.nal\.usda\.gov)?/fdc-datasets/"
-    r"FoodData_Central_branded_food_csv_(?P<date>\d{4}-\d{2}-\d{2})\.zip)"
+    r"FoodData_Central_csv_(?P<date>\d{4}-\d{2}-\d{2})\.zip)"
 )
 
 
@@ -33,7 +33,7 @@ def discover(document: str) -> Release:
         for match in ARCHIVE_PATTERN.finditer(decoded)
     ]
     if not matches:
-        raise RuntimeError("USDA downloads page did not expose a branded-food CSV archive")
+        raise RuntimeError("USDA downloads page did not expose the all-data-types CSV archive")
     return max(matches, key=lambda release: release.source_date)
 
 

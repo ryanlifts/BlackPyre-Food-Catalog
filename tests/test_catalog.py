@@ -29,12 +29,19 @@ with tempfile.TemporaryDirectory(prefix="blackpyre-catalog-test-") as temp:
     )
     subprocess.run(["python3", str(root / "tools" / "validate_catalog.py"), str(dist)], check=True)
     manifest = json.loads((dist / "manifest.json").read_text())
-    assert manifest["sources"]["usda"]["records"] == 1
+    assert manifest["recordCount"] == 3
+    assert manifest["sources"]["usda"]["records"] == 3
+    assert manifest["sources"]["usda"]["dataTypes"] == "all USDA FoodData Central data types"
     assert "usda-barcode-00.json" in manifest["assets"]
     search = json.loads((dist / "usda-search-te.json").read_text())
     record = search["records"][0]
     assert record[1] == "TEST VANILLA YOGURT"
     assert record[2] == "Test Brand"
     assert record[3:7] == [59.0, 10.0, 3.6, 0.4]
+    chicken = json.loads((dist / "usda-search-ch.json").read_text())["records"][0]
+    assert chicken[1] == "CHICKEN BREAST MEAT ONLY COOKED ROASTED"
+    assert chicken[2] == ""
+    assert chicken[3:7] == [165.0, 31.02, 0.0, 3.57]
+    assert chicken[7:10] == [100.0, "100 g", ""]
 
 print("catalog fixture test passed")

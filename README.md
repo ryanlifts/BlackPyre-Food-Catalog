@@ -1,7 +1,7 @@
 # BlackPyre Food Catalog
 
 BlackPyre's no-cost, downloadable food-data pipeline. It turns public USDA
-FoodData Central bulk downloads into small JSON shards that BlackPyre can
+FoodData Central all-data-types bulk downloads into small JSON shards that BlackPyre can
 search without a paid server or an API key.
 
 ## Data contract
@@ -19,7 +19,7 @@ search without a paid server or an API key.
 Search shards are selected by the first two normalized characters of a product
 or brand token. Barcode shards are selected by the first two barcode digits.
 
-The monthly scheduled workflow checks USDA for a newer branded CSV and does
+The monthly scheduled workflow checks USDA for a newer all-data-types CSV and does
 nothing when the current source is already published. When USDA updates it, the
 workflow downloads the archive, builds and validates every shard, and publishes
 a dated GitHub Release only after every asset succeeds. The app uses
@@ -30,7 +30,7 @@ locally for offline reuse.
 
 ```sh
 python3 tools/build_catalog.py \
-  --usda-zip FoodData_Central_branded_food_csv_2026-04-30.zip \
+  --usda-zip FoodData_Central_csv_2026-04-30.zip \
   --output dist \
   --release-tag catalog-2026-04-30
 python3 tools/validate_catalog.py dist

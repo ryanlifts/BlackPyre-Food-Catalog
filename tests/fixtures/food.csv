@@ -1,3 +1,5 @@
 fdc_id,data_type,description,food_category_id,publication_date
 1,Branded,TEST VANILLA YOGURT,1,2026-04-30
 2,Branded,NON US FOOD,1,2026-04-30
+3,Foundation,CHICKEN BREAST MEAT ONLY COOKED ROASTED,1,2026-04-30
+4,SR Legacy,RICE WHITE LONG-GRAIN COOKED,1,2018-04-01

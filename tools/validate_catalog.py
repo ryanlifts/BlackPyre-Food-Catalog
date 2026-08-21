@@ -37,8 +37,10 @@ for name, expected in manifest.get("assets", {}).items():
     if len(shard.get("records", [])) != expected.get("records"):
         fail(f"wrong record count for {name}")
     for record in shard.get("records", []):
-        if len(record) != 11 or not record[1] or not record[9]:
+        if len(record) != 11 or not record[1]:
             fail(f"malformed record in {name}")
+        if name.startswith("usda-barcode-") and not record[9]:
+            fail(f"barcode shard contains a generic record in {name}")
         if any(value is None or value < 0 for value in record[3:7]):
             fail(f"invalid nutrition in {name}")
 

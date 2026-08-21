@@ -84,7 +84,7 @@ jobs:
               echo "Could not upload $asset after five attempts" >&2
               exit 1
             fi
-            sleep 2
+            sleep 1
           done
 
           gh release edit "$CATALOG_TAG" --draft=false --latest
