@@ -1,0 +1,54 @@
+name: Publish Food Catalog to GitHub Pages
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows:
+      - Refresh BlackPyre Food Catalog
+    types:
+      - completed
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: food-catalog-pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download the latest complete catalog release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir dist
+          gh release download --dir dist
+      - name: Verify every mirrored catalog asset
+        run: python3 tools/validate_catalog.py dist
+      - name: Add a minimal catalog landing page
+        run: |
+          touch dist/.nojekyll
+          printf '%s\n' \
+            '<!doctype html><meta charset="utf-8"><title>BlackPyre Food Catalog</title>' \
+            '<p>BlackPyre Food Catalog data service.</p>' > dist/index.html
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+      - name: Upload verified Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist
+      - name: Deploy verified catalog
+        id: deployment
+        uses: actions/deploy-pages@v4
