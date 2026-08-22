@@ -34,7 +34,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir dist
-          gh release download --dir dist
+          gh release download --pattern '*' --dir dist
       - name: Verify every mirrored catalog asset
         run: python3 tools/validate_catalog.py dist
       - name: Add a minimal catalog landing page
