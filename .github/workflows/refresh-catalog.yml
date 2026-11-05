@@ -2,11 +2,22 @@ name: Refresh BlackPyre Food Catalog
 
 on:
   workflow_dispatch:
+    inputs:
+      force_rebuild:
+        description: Rebuild even when the USDA source is already published
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/**'
+      - 'tools/**'
+      - 'tests/**'
   schedule:
-    - cron: "17 9 1 * *"
+    - cron: "17 9 * * 1"
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: food-catalog-refresh
@@ -14,6 +25,9 @@ concurrency:
 
 jobs:
   build-and-release:
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     timeout-minutes: 180
     steps:
@@ -21,29 +35,23 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Test catalog pipeline
+        run: python3 -m unittest discover -s tests
       - name: Discover current official USDA bulk release
         run: python3 tools/discover_usda_release.py --github-env "$GITHUB_ENV"
-      - name: Test release discovery
-        run: python3 -m unittest tests/test_discover_usda_release.py
       - name: Check whether USDA published a new source release
         id: catalog-needed
         env:
           GH_TOKEN: ${{ github.token }}
+          FORCE_REBUILD: ${{ inputs.force_rebuild || false }}
         run: |
-          build=true
-          if [ "$GITHUB_EVENT_NAME" = "schedule" ]; then
-            existing_dir=$(mktemp -d)
-            if gh release download --pattern manifest.json --dir "$existing_dir" 2>/dev/null; then
-              previous_source=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["sources"]["usda"]["release"])' "$existing_dir/manifest.json")
-              if [ "$previous_source" = "$USDA_SOURCE_DATE" ]; then
-                build=false
-              fi
-            fi
-          fi
-          echo "build=$build" >> "$GITHUB_OUTPUT"
-          if [ "$build" = false ]; then
-            echo "USDA source $USDA_SOURCE_DATE is already published; no duplicate release needed."
-          fi
+          # Fail on a download/API error instead of rebuilding a giant dataset
+          # merely because the current manifest could not be read.
+          mkdir -p current
+          gh release download --pattern manifest.json --dir current
+          python3 tools/catalog_refresh.py decide \
+            --manifest current/manifest.json --source-date "$USDA_SOURCE_DATE" \
+            --force "$FORCE_REBUILD" >> "$GITHUB_OUTPUT"
       - name: Select release tag
         if: steps.catalog-needed.outputs.build == 'true'
         run: echo "CATALOG_TAG=catalog-$(date -u +%Y-%m-%d)-${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
@@ -88,3 +96,60 @@ jobs:
           done
 
           gh release edit "$CATALOG_TAG" --draft=false --latest
+
+  publish:
+    needs: build-and-release
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/publish-pages.yml
+
+  record-check:
+    # A real audit record on every attempt, even when USDA is unchanged or a
+    # job fails. Weekly repository activity prevents the 60-day idle shutdown.
+    if: always() && !cancelled() && github.ref == 'refs/heads/main'
+    needs: [build-and-release, publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Record outcome without hiding a failed refresh or deployment
+        uses: actions/github-script@v7
+        env:
+          REFRESH_RESULT: ${{ needs.build-and-release.result }}
+          PUBLISH_RESULT: ${{ needs.publish.result }}
+        with:
+          script: |
+            const path = 'status/catalog-check.json';
+            const branch = 'catalog-status';
+            const repo = {...context.repo};
+            for (let attempt = 0; attempt < 3; attempt++) {
+              let previous = {}, sha;
+              try {
+                const {data} = await github.rest.repos.getContent({...repo, path, ref: branch});
+                sha = data.sha;
+                previous = JSON.parse(Buffer.from(data.content, 'base64').toString('utf8'));
+              } catch (error) { if (error.status !== 404) throw error; }
+              const checkedAt = new Date().toISOString();
+              const succeeded = process.env.REFRESH_RESULT === 'success' && process.env.PUBLISH_RESULT === 'success';
+              const record = {
+                checkedAt,
+                lastSuccessAt: succeeded ? checkedAt : (previous.lastSuccessAt || null),
+                refresh: process.env.REFRESH_RESULT,
+                publication: process.env.PUBLISH_RESULT,
+                runUrl: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
+              };
+              try {
+                await github.rest.repos.createOrUpdateFileContents({
+                  ...repo, path, branch, sha,
+                  message: `Record catalog check: ${succeeded ? 'verified' : 'needs attention'}`,
+                  content: Buffer.from(JSON.stringify(record, null, 2) + '\n').toString('base64')
+                });
+                await core.summary.addHeading('Catalog refresh outcome').addCodeBlock(JSON.stringify(record, null, 2), 'json').write();
+                break;
+              } catch (error) {
+                if (attempt === 2 || ![409, 422].includes(error.status)) throw error;
+              }
+            }
