@@ -2,11 +2,7 @@ name: Publish Food Catalog to GitHub Pages
 
 on:
   workflow_dispatch:
-  workflow_run:
-    workflows:
-      - Refresh BlackPyre Food Catalog
-    types:
-      - completed
+  workflow_call:
 
 permissions:
   contents: read
@@ -19,9 +15,7 @@ concurrency:
 
 jobs:
   deploy:
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      github.event.workflow_run.conclusion == 'success'
+    if: github.ref == 'refs/heads/main'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -29,6 +23,9 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - name: Download the latest complete catalog release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -52,3 +49,9 @@ jobs:
       - name: Deploy verified catalog
         id: deployment
         uses: actions/deploy-pages@v4
+      - name: Verify the public manifest and representative search/barcode shards
+        env:
+          CATALOG_PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: >-
+          python3 tools/verify_public_catalog.py
+          --manifest dist/manifest.json --base-url "$CATALOG_PAGE_URL"
